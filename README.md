@@ -18,6 +18,14 @@ Het verhaal telt 11 hoofdstukken.
   het lijstje met doelen om af te vinken.
 - **Mini-opdrachten** tussendoor (sorteren, koppelen, meerkeuze). Die tellen niet mee
   en je mag ze opnieuw proberen.
+- **Eerst afmaken**: de knop *Volgende* werkt pas als alle vragen, tekeningen, mini-opdrachten
+  en evaluaties van een scène af zijn. De app toont wat er nog ontbreekt. Hoofdstukken die een kind
+  nog niet bereikte, staan op slot. Uitzetten kan in `js/instellingen.js` (`eerstAfmaken: false`).
+  Opdrachten met de titel "Extra" mogen overgeslagen worden.
+- **Reacties op open vragen**: terwijl het kind typt, geeft de app een korte reactie
+  ("Sterk!", "Goed bezig! Denk ook aan ...", of een tip). De app zoekt daarvoor naar
+  sleutelwoorden die in `js/feedback.js` staan. Dat werkt zonder internet, maar het is een
+  hulpje en geen echte verbetering: de leerkracht leest de antwoorden zelf na.
 - **5 evaluatiemomenten** om te zien of de kinderen nog mee zijn. De eerste poging telt.
   Daarna mogen ze nog oefenen.
 - **Eindopdracht** (hoofdstuk 9): een informatiepakket en een presentatie over het eiland
@@ -85,6 +93,7 @@ js/instellingen.js    leerkrachtcode en de link naar de Google Sheet
 js/klaslijst.js       de namen van de kinderen
 js/verhaal.js         ALLE verhaaltekst, opdrachten, evaluaties, cycli en rubrics
 js/woorden.js         de woordenlijst met uitleg
+js/feedback.js        sleutelwoorden en tips voor de reacties op open vragen
 js/opdrachten.js      hoe elke soort opdracht en evaluatie werkt
 js/resultaten.js      antwoorden en scores bewaren, CSV en Google Sheet
 js/leerkracht.js      het leerkrachtscherm

@@ -641,6 +641,23 @@ textarea.antwoord:focus, .antwoord-kort:focus, .koppel-keuze:focus { outline: 4p
 .knop-gevaar { background: #8a1d12; border-color: #5a120b; box-shadow: 0 4px 0 #5a120b; }
 .knop-gevaar:hover { background: #6e170e; }
 
+/* ---------- Eerst afmaken ---------- */
+.knop-volgende.geblokkeerd { background: #b9a07c; border-color: #7d6a4f; box-shadow: 0 4px 0 #7d6a4f; }
+.knop-volgende.geblokkeerd:hover { background: #a88f6b; }
+.nog-doen {
+  flex: 1; margin: 0; align-self: center; text-align: center;
+  font-size: 17px; font-weight: bold; color: #8a1d12;
+  background: #fdebe5; border-radius: 12px; padding: 6px 10px;
+}
+.opdracht.nog-invullen { box-shadow: 0 0 0 5px #f6b8a6; }
+.hoofdstuk-knop.op-slot { opacity: .55; cursor: not-allowed; }
+
+/* ---------- Reacties op open vragen ---------- */
+.reactie { margin: 6px 0 0; padding: 6px 12px; border-radius: 10px; font-size: 18px; }
+.reactie-goed { background: #e4f5dc; color: #245a20; }
+.reactie-bijna { background: #fff3cf; color: #6b4a00; }
+.reactie-tip { background: #eaf2fb; color: #1e4f8a; }
+
 /* ---------- Minder beweging ----------
    Via de knop (klasse op body) of via de instelling van de computer. */
 body.minder-beweging *,
@@ -659,6 +676,8 @@ body.minder-beweging *::after {
   .knop-groot { min-width: 0; width: 100%; max-width: 340px; }
   .ontdekplek { width: 48px; height: 48px; margin: -24px 0 0 -24px; font-size: 22px; }
   .tekst { padding: 12px 14px; }
+  .navigatie { flex-wrap: wrap; }
+  .nog-doen { order: -1; flex-basis: 100%; }
 }
 
 /* Lage schermen (laptop, digibord liggend): alles iets compacter */

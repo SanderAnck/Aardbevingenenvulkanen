@@ -90,7 +90,15 @@ window.RESULTATEN = (function () {
 
   /* ---------- Hoofdstuk voor "verder lezen" ---------- */
 
-  function zetHoofdstuk(n) { var l = actief(); if (l) { l.hoofdstuk = n; bewaar(); } }
+  // "verst" = het verste hoofdstuk dat het kind al bereikte. Verder dan
+  // dat kan het niet springen via het hoofdstukkenoverzicht.
+  function zetHoofdstuk(n) {
+    var l = actief(); if (!l) return;
+    l.hoofdstuk = n;
+    l.verst = Math.max(l.verst || l.hoofdstuk || 1, n);
+    bewaar();
+  }
+  function verst() { var l = actief(); return l ? (l.verst || l.hoofdstuk || 1) : 1; }
   function hoofdstuk() { var l = actief(); return l ? l.hoofdstuk : null; }
 
   /* ---------- Scores ---------- */
@@ -190,7 +198,7 @@ window.RESULTATEN = (function () {
     KOLOMMEN: KOLOMMEN,
     meldAan: meldAan, meldAf: meldAf, actief: actief, zetGroep: zetGroep,
     antwoord: antwoord, zetAntwoord: zetAntwoord,
-    zetHoofdstuk: zetHoofdstuk, hoofdstuk: hoofdstuk,
+    zetHoofdstuk: zetHoofdstuk, hoofdstuk: hoofdstuk, verst: verst,
     bewaarScore: bewaarScore, score: score, bewaarRubric: bewaarRubric,
     alsCsv: alsCsv, verstuur: verstuur, wisAlles: wisAlles,
     data: function () { return data; }

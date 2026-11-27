@@ -195,6 +195,13 @@
         '<span><span class="naam">' + veilig(hoofdstuk.titel) + "</span>" +
         (extra ? '<span class="evals">' + extra + "</span>" : "") + "</span>";
       knop.setAttribute("aria-label", "Hoofdstuk " + hoofdstuk.nummer + ": " + hoofdstuk.titel);
+      // Een hoofdstuk dat het kind nog niet bereikte, is op slot.
+      if (eerstAfmaken() && hoofdstuk.nummer > R.verst()) {
+        knop.disabled = true;
+        knop.classList.add("op-slot");
+        knop.setAttribute("aria-label", "Hoofdstuk " + hoofdstuk.nummer + ": " + hoofdstuk.titel + ", nog op slot");
+        knop.querySelector(".nummer").textContent = "\uD83D\uDD12";
+      }
       knop.addEventListener("click", function () { startVerhaal(hoofdstuk.nummer); });
       li.appendChild(knop);
       lijst.appendChild(li);
@@ -266,7 +273,10 @@
       volgende.hidden = !!scene.keuze;
     }
 
-    // Bewaar enkel het hoofdstuk
+    // Mag het kind al verder?
+    werkVolgendeBij();
+
+    // Bewaar het hoofdstuk
     bewaarHoofdstuk(hoofdstuk.nummer);
 
     // Geluidje bij de scène (alleen als het geluid aan staat)
@@ -429,8 +439,46 @@
      7. Vorige en Volgende
      ------------------------------------------------------------- */
 
+  /* Eerst afmaken: zolang een vraag of evaluatie van deze scène niet
+     af is, kan het kind niet verder. De knop blijft zichtbaar, zodat
+     het kind kan klikken en ziet wat er nog ontbreekt.              */
+  function eerstAfmaken() { return (window.INSTELLINGEN || {}).eerstAfmaken !== false; }
+
+  function nogTeDoen() {
+    if (!eerstAfmaken() || !window.OPDRACHTEN) return null;
+    return window.OPDRACHTEN.ontbreekt();
+  }
+
+  function werkVolgendeBij() {
+    var knop = $("knop-volgende");
+    var scene = reeks[positie] && reeks[positie].scene;
+    var mist = scene && !scene.slot ? nogTeDoen() : null;
+    knop.classList.toggle("geblokkeerd", !!mist);
+    knop.setAttribute("aria-disabled", mist ? "true" : "false");
+    var hint = $("nog-doen");
+    if (!mist) {
+      hint.hidden = true;
+      document.querySelectorAll(".opdracht.nog-invullen").forEach(function (k) { k.classList.remove("nog-invullen"); });
+    } else if (!hint.hidden) {
+      hint.textContent = mist.tekst;
+    }
+  }
+
   function volgende() {
     var scene = reeks[positie].scene;
+    var mist = scene.slot ? null : nogTeDoen();
+    if (mist) {
+      // Toon wat er nog moet gebeuren en spring naar die opdracht.
+      var hint = $("nog-doen");
+      hint.hidden = false;
+      hint.textContent = mist.tekst;
+      document.querySelectorAll(".opdracht.nog-invullen").forEach(function (k) { k.classList.remove("nog-invullen"); });
+      mist.kaart.classList.add("nog-invullen");
+      mist.kaart.scrollIntoView({ behavior: document.body.classList.contains("minder-beweging") ? "auto" : "smooth", block: "center" });
+      var veld = mist.kaart.querySelector("textarea, input, select, button:not([disabled])");
+      if (veld) setTimeout(function () { veld.focus({ preventScroll: true }); }, 50);
+      return;
+    }
     if (scene.slot) {
       // Opnieuw beginnen: terug naar het startscherm, keuze vergeten.
       eersteKeuze = null;
@@ -806,6 +854,11 @@
     maakReeks();
     toonScherm(aangemeld() ? "start" : "aanmelden");
 
+    // Telkens het kind iets invult, kijken we of het al verder mag.
+    ["input", "change", "click", "pointerup"].forEach(function (soort) {
+      $("opdracht").addEventListener(soort, function () { setTimeout(werkVolgendeBij, 0); });
+    });
+
     // Aanmelden met een getypte naam
     $("naam-formulier").addEventListener("submit", function (e) {
       e.preventDefault();
@@ -828,6 +881,11 @@
     $("knop-terug-leerkracht").addEventListener("click", function () {
       if (window.LEERKRACHT) window.LEERKRACHT.sluit();
       toonScherm(aangemeld() ? "start" : "aanmelden");
+
+    // Telkens het kind iets invult, kijken we of het al verder mag.
+    ["input", "change", "click", "pointerup"].forEach(function (soort) {
+      $("opdracht").addEventListener(soort, function () { setTimeout(werkVolgendeBij, 0); });
+    });
     });
 
     // Scores die nog niet naar de Google Sheet gingen, opnieuw proberen.
