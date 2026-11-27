@@ -14,5 +14,14 @@ window.INSTELLINGEN = {
 
   // Mogen kinderen bij een evaluatie opnieuw proberen? De EERSTE poging
   // telt altijd voor de score; opnieuw proberen is om te oefenen.
-  opnieuwProberen: true
+  opnieuwProberen: true,
+
+  // Moeten de kinderen eerst alle vragen en evaluaties van een scène
+  // afmaken voor ze op "Volgende" kunnen klikken? (true = ja)
+  // Zet op false om vrij te bladeren, bv. om de app zelf te bekijken.
+  eerstAfmaken: true,
+
+  // Reageert de app op de antwoorden bij open vragen? (true = ja)
+  // De reacties staan in js/feedback.js.
+  feedbackOpOpenVragen: true
 };
