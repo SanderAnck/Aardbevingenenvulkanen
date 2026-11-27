@@ -1,10 +1,12 @@
 /* =====================================================================
    De aarde bromt – de code van de app
    ---------------------------------------------------------------------
-   Hier staat hoe de app werkt: schermen wisselen, scènes tonen,
-   ontdekplekken, moeilijke woorden, het keuzemoment, voorlezen,
-   geluid, minder beweging en "verder lezen".
-   De verhaaltekst zelf staat in js/verhaal.js.
+   Hier staat hoe de app werkt: aanmelden, schermen wisselen, scènes
+   tonen, ontdekplekken, moeilijke woorden, het keuzemoment, opdrachten,
+   de cyclus, voorlezen, geluid, minder beweging en "verder lezen".
+   De verhaaltekst en de opdrachten staan in js/verhaal.js.
+   Hoe elke opdracht werkt, staat in js/opdrachten.js.
+   Antwoorden en scores worden bewaard via js/resultaten.js.
    ===================================================================== */
 
 (function () {
@@ -29,6 +31,8 @@
   var VERHAAL = window.VERHAAL || [];
   var WOORDEN = window.WOORDEN || {};
   var PRENTEN = window.PRENTEN || {};
+  var CYCLI = window.CYCLI || {};
+  var R = window.RESULTATEN;
 
   // Afmetingen van elke prent (viewBox van de SVG).
   var PRENT_BREEDTE = 800;
@@ -38,10 +42,10 @@
      2. De volgorde van de scènes
      -------------------------------------------------------------
      Alle scènes staan achter elkaar in één lange lijst ("reeks").
-     Het keuzemoment bepaalt enkel welke scène van hoofdstuk 5 eerst
-     komt. Beide scènes worden altijd gelezen.                      */
+     Het keuzemoment bepaalt enkel welke van de twee gekozen scènes
+     eerst komt (bv. Italië of Hawaï). Beide worden altijd gelezen.  */
 
-  var eersteKeuze = null;   // bv. "5.1" of "5.2"; null = nog niet gekozen
+  var eersteKeuze = null;   // bv. "5.6" of "5.7"; null = nog niet gekozen
   var reeks = [];           // lijst van { hoofdstuk, scene }
   var positie = 0;          // waar we nu zijn in de reeks
 
@@ -50,14 +54,24 @@
     VERHAAL.forEach(function (hoofdstuk) {
       var scenes = hoofdstuk.scenes.slice();
 
-      // Zoek een scène in dit hoofdstuk die als "eerst" gekozen kan worden.
+      // Is er in dit hoofdstuk een keuze gemaakt? Wissel dan de twee
+      // keuzescènes van plaats als de tweede gekozen werd.
       if (eersteKeuze) {
-        var i = scenes.findIndex(function (s) { return s.id === eersteKeuze; });
-        if (i > 0) {
-          // Zet de gekozen scène vooraan (de rest blijft in dezelfde volgorde).
-          var gekozen = scenes.splice(i, 1)[0];
-          scenes.unshift(gekozen);
-        }
+        scenes.forEach(function (s) {
+          if (!s.keuze) return;
+          var ids = s.keuze.map(function (k) { return k.eerst; });
+          if (ids.indexOf(eersteKeuze) < 0) return;
+          var plekken = ids.map(function (id) {
+            return scenes.findIndex(function (x) { return x.id === id; });
+          });
+          var gekozen = scenes.findIndex(function (x) { return x.id === eersteKeuze; });
+          var eerste = Math.min.apply(null, plekken);
+          if (gekozen > eerste) {
+            var tmp = scenes[eerste];
+            scenes[eerste] = scenes[gekozen];
+            scenes[gekozen] = tmp;
+          }
+        });
       }
 
       scenes.forEach(function (scene) {
@@ -75,23 +89,52 @@
   }
 
   /* -------------------------------------------------------------
-     3. Bewaren: enkel het laatst gelezen hoofdstuk
+     3. Bewaren: het laatst gelezen hoofdstuk, per leerling
      ------------------------------------------------------------- */
 
-  var BEWAAR_SLEUTEL = "deAardeBromt.hoofdstuk";
-
-  function bewaarHoofdstuk(nummer) {
-    try { window.localStorage.setItem(BEWAAR_SLEUTEL, String(nummer)); }
-    catch (e) { /* bewaren lukt niet (bv. privévenster): geen probleem */ }
-  }
+  function bewaarHoofdstuk(nummer) { R.zetHoofdstuk(nummer); }
 
   function leesBewaardHoofdstuk() {
-    try {
-      var waarde = parseInt(window.localStorage.getItem(BEWAAR_SLEUTEL), 10);
-      if (waarde >= 1 && waarde <= VERHAAL.length) return waarde;
-    } catch (e) { /* niets bewaard */ }
-    return null;
+    var waarde = parseInt(R.hoofdstuk(), 10);
+    return waarde >= 1 && waarde <= VERHAAL.length ? waarde : null;
   }
+
+  /* -------------------------------------------------------------
+     3b. Aanmelden
+     -------------------------------------------------------------
+     Staat er een klaslijst in js/klaslijst.js, dan klikt het kind op
+     zijn naam. Is de lijst leeg, dan typt het zijn naam en klas.     */
+
+  function maakAanmeldscherm() {
+    var lijst = (window.KLASLIJST || {}).leerlingen || [];
+    var klas = (window.KLASLIJST || {}).klas || "";
+    var namen = $("namen");
+    namen.innerHTML = "";
+    if (lijst.length) {
+      $("aanmelden-uitleg").textContent = "Klik op je naam.";
+      $("naam-formulier").hidden = true;
+      lijst.forEach(function (naam) {
+        var knop = document.createElement("button");
+        knop.type = "button";
+        knop.className = "knop knop-naam";
+        knop.textContent = naam;
+        knop.addEventListener("click", function () { meldAan(naam, klas); });
+        namen.appendChild(knop);
+      });
+    } else {
+      $("aanmelden-uitleg").textContent = "Typ je naam en je klas.";
+      $("naam-formulier").hidden = false;
+      if (klas) $("klas-invoer").value = klas;
+    }
+  }
+
+  function meldAan(naam, klas) {
+    if (!R.meldAan(naam, klas)) return;
+    toonScherm("start");
+  }
+
+  // Na het aanmelden kunnen opdrachten bewaard worden.
+  function aangemeld() { return !!R.actief(); }
 
   /* -------------------------------------------------------------
      4. Schermen wisselen
@@ -99,14 +142,21 @@
 
   function toonScherm(naam) {
     stopVoorlezen();
-    ["start", "hoofdstukken", "verhaal"].forEach(function (s) {
+    // Wie niet aangemeld is, moet eerst zeggen wie hij is.
+    if (!aangemeld() && naam !== "aanmelden" && naam !== "leerkracht") naam = "aanmelden";
+    ["aanmelden", "start", "hoofdstukken", "verhaal", "leerkracht"].forEach(function (s) {
       $("scherm-" + s).classList.toggle("actief", s === naam);
     });
     window.scrollTo(0, 0);
     if (naam === "start") werkStartschermBij();
+    if (naam === "aanmelden") maakAanmeldscherm();
+    if (naam === "hoofdstukken") maakHoofdstukkenLijst();
   }
 
   function werkStartschermBij() {
+    var l = R.actief();
+    $("wie").textContent = l ? "Hallo " + l.naam + "!" : "";
+    $("knop-afmelden").textContent = l ? "Ik ben niet " + l.naam : "Aanmelden";
     $("knop-verder").hidden = leesBewaardHoofdstuk() === null;
   }
 
@@ -129,9 +179,21 @@
       var knop = document.createElement("button");
       knop.type = "button";
       knop.className = "knop hoofdstuk-knop";
+      // Welke evaluaties zitten in dit hoofdstuk, en zijn ze al gemaakt?
+      var evals = [];
+      hoofdstuk.scenes.forEach(function (s) {
+        (Array.isArray(s.opdracht) ? s.opdracht : (s.opdracht ? [s.opdracht] : [])).forEach(function (o) {
+          if (o.soort === "evaluatie") evals.push(o);
+        });
+      });
+      var extra = evals.map(function (o) {
+        var sc = R.score(o.id);
+        return '<span class="eval-stip' + (sc ? " gedaan" : "") + '">' + (sc ? "✔ " : "") + veilig(o.titel.split(" –")[0]) + "</span>";
+      }).join(" ");
       knop.innerHTML =
         '<span class="nummer">' + hoofdstuk.nummer + "</span>" +
-        '<span><span class="naam">' + veilig(hoofdstuk.titel) + "</span></span>";
+        '<span><span class="naam">' + veilig(hoofdstuk.titel) + "</span>" +
+        (extra ? '<span class="evals">' + extra + "</span>" : "") + "</span>";
       knop.setAttribute("aria-label", "Hoofdstuk " + hoofdstuk.nummer + ": " + hoofdstuk.titel);
       knop.addEventListener("click", function () { startVerhaal(hoofdstuk.nummer); });
       li.appendChild(knop);
@@ -168,8 +230,12 @@
     $("voortgang").innerHTML = bolletjes;
     $("voortgang").setAttribute("aria-label", "Deel " + (nr + 1) + " van " + scenesVanHoofdstuk.length);
 
-    // De prent
-    var prent = PRENTEN[scene.prent];
+    // De cyclus (alleen bij de eindopdracht en de STEM-challenge)
+    toonCyclus(scene.cyclus);
+
+    // De prent (een scène kan ook zonder prent)
+    var prent = scene.prent ? PRENTEN[scene.prent] : null;
+    $("prent-kader").hidden = !prent;
     $("prent").innerHTML = typeof prent === "function" ? prent() : (prent || "");
 
     // De ontdekplekken
@@ -180,6 +246,10 @@
 
     // Keuzemoment
     toonKeuzes(scene);
+
+    // Opdrachten en evaluaties
+    if (window.OPDRACHTEN) window.OPDRACHTEN.toon(scene.opdracht || null, $("opdracht"));
+    $("scherm-verhaal").classList.toggle("met-opdracht", !!scene.opdracht);
 
     // Knoppen onderaan
     $("knop-vorige").disabled = positie === 0;
@@ -214,14 +284,19 @@
     if (!scherm.classList.contains("actief")) return;
     var kader = $("prent-kader");
     var keuzes = $("keuzes");
+    var cyclus = $("cyclus");
     var hoogteRest =
       scherm.querySelector(".balk").offsetHeight +
       scherm.querySelector(".navigatie").offsetHeight +
       $("tekst").offsetHeight +
       (keuzes.hidden ? 0 : keuzes.offsetHeight + 12) +
+      (cyclus.hidden ? 0 : cyclus.offsetHeight + 12) +
       50;   // witruimte tussen de delen
     var beschikbaar = window.innerHeight - hoogteRest;
     var breedte = Math.max(300, Math.floor(beschikbaar * 16 / 9));
+    // Bij een opdracht mag de pagina scrollen; de prent blijft dan kleiner,
+    // zodat het kind meteen ziet dat er onder de tekst een opdracht staat.
+    if (!$("opdracht").hidden) breedte = Math.min(Math.max(breedte, 420), 620);
     kader.style.maxWidth = breedte + "px";
   }
 
@@ -307,6 +382,22 @@
       einde.textContent = "EINDE";
       houder.appendChild(einde);
     }
+  }
+
+  // Toon de stappen van de cyclus en markeer de stap waar we nu zijn.
+  function toonCyclus(c) {
+    var houder = $("cyclus");
+    var cyclus = c && CYCLI[c.soort];
+    if (!cyclus) { houder.hidden = true; houder.innerHTML = ""; return; }
+    houder.hidden = false;
+    houder.className = "cyclus cyclus-" + c.soort;
+    var html = '<span class="cyclus-naam">' + veilig(cyclus.naam) + "</span><ol>";
+    cyclus.stappen.forEach(function (stap, i) {
+      var klasse = i < c.stap ? "gedaan" : (i === c.stap ? "nu" : "");
+      html += '<li class="' + klasse + '"' + (i === c.stap ? ' aria-current="step"' : "") + ">" +
+        '<span class="cyclus-nr">' + (i + 1) + "</span> " + veilig(stap) + "</li>";
+    });
+    houder.innerHTML = html + "</ol>";
   }
 
   function toonKeuzes(scene) {
@@ -711,9 +802,36 @@
     var startPrent = PRENTEN.start;
     $("start-prent").innerHTML = typeof startPrent === "function" ? startPrent() : (startPrent || "");
 
-    maakHoofdstukkenLijst();
+    $("aanmelden-prent").innerHTML = $("start-prent").innerHTML;
     maakReeks();
-    werkStartschermBij();
+    toonScherm(aangemeld() ? "start" : "aanmelden");
+
+    // Aanmelden met een getypte naam
+    $("naam-formulier").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var naam = $("naam-invoer").value.trim();
+      if (!naam) { $("naam-invoer").focus(); return; }
+      meldAan(naam, $("klas-invoer").value.trim());
+      $("naam-invoer").value = "";
+    });
+    $("knop-afmelden").addEventListener("click", function () {
+      R.meldAf();
+      eersteKeuze = null;
+      toonScherm("aanmelden");
+    });
+    function naarLeerkracht() {
+      toonScherm("leerkracht");
+      if (window.LEERKRACHT) window.LEERKRACHT.open($("leerkracht-inhoud"));
+    }
+    $("knop-leerkracht").addEventListener("click", naarLeerkracht);
+    $("knop-leerkracht-aanmelden").addEventListener("click", naarLeerkracht);
+    $("knop-terug-leerkracht").addEventListener("click", function () {
+      if (window.LEERKRACHT) window.LEERKRACHT.sluit();
+      toonScherm(aangemeld() ? "start" : "aanmelden");
+    });
+
+    // Scores die nog niet naar de Google Sheet gingen, opnieuw proberen.
+    R.verstuur();
 
     // Knoppen op het startscherm
     $("knop-start").addEventListener("click", function () {
@@ -742,6 +860,9 @@
       var kaartjeOpen = !$("kaartje-achtergrond").hidden;
       if (e.key === "Escape" && kaartjeOpen) { sluitKaartje(); return; }
       if (kaartjeOpen || !$("scherm-verhaal").classList.contains("actief")) return;
+      // Niet bladeren terwijl het kind typt, tekent of iets kiest.
+      var doel = e.target && e.target.tagName;
+      if (/^(INPUT|TEXTAREA|SELECT|CANVAS)$/.test(doel)) return;
       if (e.key === "ArrowRight" && !$("knop-volgende").hidden) volgende();
       if (e.key === "ArrowLeft") vorige();
     });
@@ -776,6 +897,9 @@
     // Stop het voorlezen als het venster sluit
     window.addEventListener("beforeunload", function () { if (spraak) spraak.cancel(); });
   }
+
+  // Een paar functies die andere bestanden mogen gebruiken.
+  window.APP = { geluid: speelGeluid, pasPrentAan: pasPrentAan };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", start);
