@@ -10,16 +10,39 @@
 </head>
 <body>
 
+  <!-- ========== AANMELDEN ========== -->
+  <section id="scherm-aanmelden" class="scherm" aria-labelledby="aanmelden-titel">
+    <div class="start-prent" id="aanmelden-prent" aria-hidden="true"></div>
+    <div class="paneel">
+      <h1 id="aanmelden-titel">Wie ben jij?</h1>
+      <p id="aanmelden-uitleg">Klik op je naam.</p>
+      <div class="namen" id="namen"></div>
+      <form class="naam-formulier" id="naam-formulier" hidden>
+        <label for="naam-invoer">Je voornaam en de eerste letter van je familienaam</label>
+        <input type="text" id="naam-invoer" class="antwoord-kort" autocomplete="off" maxlength="40" placeholder="bv. Noor V.">
+        <label for="klas-invoer">Je klas</label>
+        <input type="text" id="klas-invoer" class="antwoord-kort" autocomplete="off" maxlength="20" placeholder="bv. 4A">
+        <button type="submit" class="knop knop-groot">Aanmelden</button>
+      </form>
+      <button type="button" class="knop knop-licht knop-klein-tekst" id="knop-leerkracht-aanmelden">Leerkracht</button>
+    </div>
+  </section>
+
   <!-- ========== STARTSCHERM ========== -->
   <section id="scherm-start" class="scherm actief" aria-labelledby="start-titel">
     <div class="start-prent" id="start-prent" aria-hidden="true"></div>
     <div class="start-inhoud">
       <h1 id="start-titel">De aarde bromt</h1>
       <p class="ondertitel">Een verhaal over vulkanen en aardbevingen</p>
+      <p class="wie" id="wie"></p>
       <div class="start-knoppen">
         <button type="button" class="knop knop-groot" id="knop-start">Start het verhaal</button>
         <button type="button" class="knop knop-groot knop-licht" id="knop-verder" hidden>Verder lezen</button>
         <button type="button" class="knop knop-groot knop-licht" id="knop-hoofdstukken">Hoofdstukken</button>
+      </div>
+      <div class="start-knoppen klein">
+        <button type="button" class="knop knop-licht" id="knop-afmelden">Ik ben iemand anders</button>
+        <button type="button" class="knop knop-licht" id="knop-leerkracht">Leerkracht</button>
       </div>
     </div>
   </section>
@@ -60,6 +83,9 @@
     </div>
 
     <div class="verhaal-inhoud">
+      <!-- Waar zitten we in de onderzoekscyclus of de ontwerpcyclus? -->
+      <div class="cyclus" id="cyclus" hidden></div>
+
       <!-- De prent met ontdekplekken -->
       <div class="prent-kader" id="prent-kader">
         <div class="prent" id="prent" aria-hidden="true"></div>
@@ -71,6 +97,9 @@
 
       <!-- Keuzemoment (alleen zichtbaar bij een keuze) -->
       <div class="keuzes" id="keuzes" hidden></div>
+
+      <!-- Opdrachten en evaluaties bij deze scène -->
+      <div class="opdrachten" id="opdracht" hidden></div>
     </div>
 
     <div class="navigatie">
@@ -85,6 +114,18 @@
     </div>
   </section>
 
+  <!-- ========== LEERKRACHT ========== -->
+  <section id="scherm-leerkracht" class="scherm" aria-labelledby="leerkracht-titel">
+    <div class="balk">
+      <button type="button" class="knop knop-icoon" id="knop-terug-leerkracht" aria-label="Terug" title="Terug">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 L12 3 L21 11 M6 9 V21 H18 V9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h2 id="leerkracht-titel">Voor de leerkracht</h2>
+      <span class="balk-ruimte"></span>
+    </div>
+    <div class="leerkracht-inhoud" id="leerkracht-inhoud"></div>
+  </section>
+
   <!-- ========== KAARTJES (weetje en woordenlijst) ========== -->
   <div class="kaartje-achtergrond" id="kaartje-achtergrond" hidden>
     <div class="kaartje" id="kaartje" role="dialog" aria-modal="true" aria-labelledby="kaartje-titel">
@@ -95,6 +136,8 @@
   </div>
 
   <!-- Data eerst, daarna de prenten, daarna de code. -->
+  <script src="js/instellingen.js"></script>
+  <script src="js/klaslijst.js"></script>
   <script src="js/woorden.js"></script>
   <script src="js/verhaal.js"></script>
   <script src="assets/figuren.js"></script>
@@ -108,6 +151,10 @@
   <script src="assets/hoofdstuk8.js"></script>
   <script src="assets/hoofdstuk9.js"></script>
   <script src="assets/hoofdstuk10.js"></script>
+  <script src="assets/werkbundel.js"></script>
+  <script src="js/resultaten.js"></script>
+  <script src="js/opdrachten.js"></script>
+  <script src="js/leerkracht.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
