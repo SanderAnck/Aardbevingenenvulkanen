@@ -60,8 +60,15 @@ window.OPDRACHTEN = (function () {
   /* ---------------------------------------------------------------
      Hoofdfunctie: toon een opdracht in "houder".
      --------------------------------------------------------------- */
+  /* Elke opdracht op het scherm zegt of ze af is.
+     controles = lijst van { kaart, mist: function () -> null of "wat ontbreekt" } */
+  var controles = [];
+
+  function vrijblijvend(o) { return !!o.vrijblijvend || /^extra/i.test(o.titel || ""); }
+
   function toon(opdracht, houder) {
     houder.innerHTML = "";
+    controles = [];
     if (!opdracht) { houder.hidden = true; return; }
     houder.hidden = false;
     var lijst = Array.isArray(opdracht) ? opdracht : [opdracht];
@@ -74,10 +81,96 @@ window.OPDRACHTEN = (function () {
       kaart.appendChild(h);
       if (o.uitleg) kaart.appendChild(maak("p", "opdracht-uitleg", o.uitleg));
       var bouw = SOORTEN[o.soort];
-      if (bouw) bouw(o, kaart);
-      else kaart.appendChild(maak("p", "", "Onbekende opdracht: " + o.soort));
+      var mist = bouw ? bouw(o, kaart) : null;
+      if (typeof mist === "function" && !vrijblijvend(o)) controles.push({ kaart: kaart, mist: mist });
+      if (vrijblijvend(o)) kaart.appendChild(maak("p", "opdracht-uitleg", "Deze opdracht is extra. Je mag verder zonder."));
+      if (!bouw) kaart.appendChild(maak("p", "", "Onbekende opdracht: " + o.soort));
       houder.appendChild(kaart);
     });
+  }
+
+  // Wat moet het kind nog doen voor het verder mag? null = alles is af.
+  function ontbreekt() {
+    for (var i = 0; i < controles.length; i++) {
+      var m = controles[i].mist();
+      if (m) return { tekst: m, kaart: controles[i].kaart };
+    }
+    return null;
+  }
+
+  function ingevuld(w) { return typeof w === "string" && /[a-z0-9\u00C0-\u024F]{2,}/i.test(w); }
+
+  /* ---------------------------------------------------------------
+     Feedback op open vragen (zie js/feedback.js)
+     --------------------------------------------------------------- */
+
+  function zonderAccent(t) {
+    return String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  // Staat het woordstukje in de tekst? Korte stukjes (3 letters of minder)
+  // moeten aan het begin van een woord staan, zodat "as" niet in "was" zit.
+  function bevat(tekst, stuk) {
+    stuk = zonderAccent(stuk);
+    if (stuk.length > 3) return tekst.indexOf(stuk) >= 0;
+    return new RegExp("(^|[^a-z])" + stuk.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(tekst);
+  }
+
+  function reactie(vraag, id, antwoord) {
+    var tekst = zonderAccent(antwoord).trim();
+    if (!tekst) return null;
+    var woorden = tekst.split(/\s+/).filter(Boolean);
+    var v = zonderAccent(vraag || "");
+    var regel = (window.FEEDBACK || {})[id];
+
+    if (woorden.length < 2 && !(regel && regel.groepen.some(function (g) { return g.woorden.some(function (w) { return bevat(tekst, w); }); })))
+      return { soort: "tip", tekst: "Schrijf een volledige zin, dan kan ik beter meekijken." };
+
+    var waaromTip = null;
+    if (/^(\d+\.\s*)?waarom/.test(v) && !/(omdat|want|doordat|zodat|daardoor|door |anders)/.test(tekst))
+      waaromTip = "Tip: leg uit met \u201comdat\u201d of \u201cwant\u201d.";
+    var vraagTip = null;
+    if (/(onderzoeksvraag|te weten komen)/.test(v) && tekst.indexOf("?") < 0)
+      vraagTip = "Tip: schrijf het als een vraag, met een vraagteken op het einde.";
+
+    if (!regel) {
+      if (vraagTip) return { soort: "tip", tekst: vraagTip };
+      if (waaromTip) return { soort: "tip", tekst: waaromTip };
+      if (woorden.length < 5) return { soort: "tip", tekst: "Goed begin! Kan je nog wat meer vertellen?" };
+      return { soort: "goed", tekst: "Mooi, je schreef een volledig antwoord." };
+    }
+
+    var gevonden = regel.groepen.filter(function (g) { return g.woorden.some(function (w) { return bevat(tekst, w); }); });
+    var mist = regel.groepen.filter(function (g) { return gevonden.indexOf(g) < 0; });
+    if (!mist.length || (regel.een && gevonden.length)) {
+      return { soort: "goed", tekst: "Sterk! " + (regel.goed || "Je gebruikt de juiste woorden.") + (vraagTip ? " " + vraagTip : "") };
+    }
+    if (gevonden.length) return { soort: "bijna", tekst: "Goed bezig! " + mist[0].tip };
+    return { soort: "tip", tekst: "Denk nog eens na. " + mist[0].tip };
+  }
+
+  // Koppel een reactievak aan een tekstvak. De reactie verschijnt even
+  // nadat het kind stopt met typen.
+  function metFeedback(veld, vraag, id) {
+    if ((window.INSTELLINGEN || {}).feedbackOpOpenVragen === false) return veld;
+    var wrap = maak("div", "met-feedback");
+    var vak = maak("p", "reactie");
+    vak.setAttribute("aria-live", "polite");
+    vak.hidden = true;
+    var wacht = null;
+    function werkBij() {
+      var r = reactie(vraag, id, veld.value);
+      if (!r) { vak.hidden = true; return; }
+      vak.hidden = false;
+      vak.className = "reactie reactie-" + r.soort;
+      vak.textContent = (r.soort === "goed" ? "\u2714 " : (r.soort === "bijna" ? "\uD83D\uDC4D " : "\uD83D\uDCA1 ")) + r.tekst;
+    }
+    veld.addEventListener("input", function () { clearTimeout(wacht); wacht = setTimeout(werkBij, 900); });
+    veld.addEventListener("blur", function () { clearTimeout(wacht); werkBij(); });
+    wrap.appendChild(veld);
+    wrap.appendChild(vak);
+    if (veld.value) werkBij();
+    return wrap;
   }
 
   /* ---------------------------------------------------------------
@@ -101,8 +194,12 @@ window.OPDRACHTEN = (function () {
     open: function (o, kaart) {
       o.vragen.forEach(function (v) {
         kaart.appendChild(vraagLabel(v.vraag));
-        kaart.appendChild(tekstvak(v.id, v.regels || 2, v.hulp));
+        kaart.appendChild(metFeedback(tekstvak(v.id, v.regels || 2, v.hulp), v.vraag, v.id));
       });
+      return function () {
+        var leeg = o.vragen.filter(function (v) { return !ingevuld(R.antwoord(v.id)); }).length;
+        return leeg ? (leeg === 1 ? "Beantwoord nog 1 vraag." : "Beantwoord nog " + leeg + " vragen.") : null;
+      };
     },
 
     lijst: function (o, kaart) {
@@ -122,6 +219,11 @@ window.OPDRACHTEN = (function () {
         })(i);
       }
       kaart.appendChild(ol);
+      return function () {
+        var w = R.antwoord(o.id) || [];
+        for (var i = 0; i < (o.aantal || 3); i++) if (!ingevuld(w[i])) return "Vul alle " + (o.aantal || 3) + " lijntjes in.";
+        return null;
+      };
     },
 
     janee: function (o, kaart) {
@@ -142,7 +244,13 @@ window.OPDRACHTEN = (function () {
       var t = tekstvak(o.id + ".uitleg", 2);
       t.value = oud.uitleg || "";
       t.addEventListener("input", function () { oud.uitleg = t.value; R.zetAntwoord(o.id, oud); });
-      kaart.appendChild(t);
+      kaart.appendChild(metFeedback(t, o.uitlegVraag || "Leg uit:", o.id + ".uitleg"));
+      return function () {
+        var a = R.antwoord(o.id) || {};
+        if (!a.keuze) return "Kies ja of nee.";
+        if (!ingevuld(a.uitleg)) return "Leg je keuze uit.";
+        return null;
+      };
     },
 
     kies: function (o, kaart) {
@@ -159,6 +267,7 @@ window.OPDRACHTEN = (function () {
         rij.appendChild(b);
       });
       kaart.appendChild(rij);
+      return function () { return R.antwoord(o.id) ? null : "Maak een keuze."; };
     },
 
     afvinken: function (o, kaart) {
@@ -205,7 +314,9 @@ window.OPDRACHTEN = (function () {
       inp.setAttribute("aria-label", "Naam van je groepje");
       inp.addEventListener("change", function () { R.zetGroep(inp.value); });
       inp.addEventListener("blur", function () { R.zetGroep(inp.value); });
+      inp.addEventListener("input", function () { R.zetGroep(inp.value); });
       kaart.appendChild(inp);
+      return function () { var l = R.actief(); return l && l.groep ? null : "Typ de naam van jullie groepje."; };
     },
 
     tekenen: function (o, kaart) {
@@ -217,6 +328,7 @@ window.OPDRACHTEN = (function () {
         kaart.appendChild(p);
       }
       kaart.appendChild(maakTekenvak(o.id));
+      return function () { return R.antwoord(o.id) ? null : "Maak eerst je tekening."; };
     },
 
     tabel: function (o, kaart) {
@@ -260,6 +372,17 @@ window.OPDRACHTEN = (function () {
       });
       wrap.appendChild(t);
       kaart.appendChild(wrap);
+      return function () {
+        var a = R.antwoord(o.id) || {};
+        for (var r = 0; r < o.rijen.length; r++) {
+          if (/^extra/i.test(o.rijen[r])) continue;     // een extra rij mag leeg blijven
+          for (var c = 0; c < o.kolommen.length; c++) {
+            var w = a[r + "." + c];
+            if (o.kolommen[c].type === "keuze" ? !w : !ingevuld(w)) return "Vul de tabel helemaal in.";
+          }
+        }
+        return null;
+      };
     },
 
     kaartlagen: function (o, kaart) {
@@ -323,8 +446,14 @@ window.OPDRACHTEN = (function () {
       kaart.appendChild(wrap);
     },
 
-    evaluatie: function (o, kaart) { bouwToets(o, kaart, true); },
-    oefening: function (o, kaart) { bouwToets(o, kaart, false); }
+    evaluatie: function (o, kaart) {
+      bouwToets(o, kaart, true);
+      return function () { return R.score(o.id) ? null : "Maak de evaluatie en klik op \u201cKlaar! Kijk mijn antwoorden na\u201d."; };
+    },
+    oefening: function (o, kaart) {
+      bouwToets(o, kaart, false);
+      return function () { return R.antwoord("oef." + o.id) ? null : "Maak de mini-opdracht en klik op \u201cKijk na\u201d."; };
+    }
   };
 
   /* ---------------------------------------------------------------
@@ -454,6 +583,7 @@ window.OPDRACHTEN = (function () {
         uitslag.innerHTML = "Je hebt <strong>" + punten + " op " + max + "</strong> juist. " + sterren(punten, max);
         // Elke poging wordt bewaard; de eerste poging blijft de score die telt.
         if (telt) R.bewaarScore(o.id, o.titel || o.id, punten, max);
+        else R.zetAntwoord("oef." + o.id, { punten: punten, max: max });
         if (window.APP && window.APP.geluid) window.APP.geluid(punten === max ? "pling" : "plons");
         // Een mini-opdracht mag je zo vaak opnieuw proberen als je wil.
         if (!telt && punten < max) {
@@ -575,5 +705,5 @@ window.OPDRACHTEN = (function () {
     }
   };
 
-  return { toon: toon };
+  return { toon: toon, ontbreekt: ontbreekt, reactie: reactie };
 })();
